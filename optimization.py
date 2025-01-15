@@ -10,7 +10,6 @@ def portfolio_std(w: np.array, sigma: np.array, risk_free_asset: bool):
     :param risk_free_asset: boolean determining whether there is a risk free asset
     :return: standard deviation of portfolio
     """
-
     if risk_free_asset:
         return np.sqrt(w[1:].T @ sigma @ w[1:])
     else:
@@ -52,13 +51,22 @@ def minimize_variance(mean: np.array, sigma: np.array, ret: float, n: int, risk_
                                      (sigma, risk_free_asset),
                                      constraints=cons,
                                      bounds=bounds,
-                                     method="SLSQP")
+                                     method="SLSQP",
+                                     options= {'maxiter' : 500})
 
     else:
         response = optimize.minimize(portfolio_std, init_w,
                                      (sigma, risk_free_asset),
                                      constraints=cons,
-                                     method="SLSQP")
+                                     method="SLSQP",
+                                     options= {'maxiter' : 500})
 
+    if not response.success:
+        print(f'\nResponse: {response}')
+        print(f'\nmean:\n {mean}')
+        print(f'\nreturns:\n {ret}')
+
+        raise RuntimeError(f"Optimization failed: {response.message}")
+    
     return response
 
