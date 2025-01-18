@@ -46,6 +46,7 @@ plotting.mean_var_locus(x, y, std, mean, 'Mean Variance Locus (No Risk Free Asse
 N = 49
 rf = pd.DataFrame(1, index=df.index, columns=["risk-free"])
 df_rf = pd.concat([rf, df], axis=0)
+df_rf = df_rf.loc[df_rf.index >= start_date, :]
 
 # cov = df.cov()
 mean = df_rf.mean(axis=0)
