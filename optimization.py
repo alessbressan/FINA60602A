@@ -20,7 +20,8 @@ def portfolio_std(w: np.array, sigma: np.array, risk_free_asset: bool):
         return np.sqrt(w.T @ sigma @ w)
 
 
-def minimize_variance(mean: np.array, sigma: np.array, ret: float, n: int, risk_free_asset: bool, long_only: bool, tangent: bool):
+def minimize_variance(mean: np.array, sigma: np.array, ret: float, n: int, risk_free_asset: bool, long_only: bool,
+                      tangent: bool):
     """
     minimizes variance of portfolio using sequential least squares programming and returns minimized std
     :param mean: mean returns of each asset in portfolio
@@ -66,7 +67,8 @@ def minimize_variance(mean: np.array, sigma: np.array, ret: float, n: int, risk_
     return response
 
 
-def minimize_variance_gurobi(mean: np.array, sigma: np.array, ret: float, risk_free_asset: bool, long_only: bool, tangent: bool):
+def minimize_variance_gurobi(mean: np.array, sigma: np.array, ret: float, risk_free_asset: bool, long_only: bool,
+                             tangent: bool):
     """
     minimizes variance of portfolio using sequential least squares programming and returns minimized std
     :param mean: mean returns of each asset in portfolio
@@ -79,13 +81,13 @@ def minimize_variance_gurobi(mean: np.array, sigma: np.array, ret: float, risk_f
     """
 
     m = gp.Model()
-    # m.Params.LogToConsole = 0
+    m.Params.LogToConsole = 0
 
     if long_only:
-        w = m.addMVar(len(mean), lb=0, ub=np.inf, name="weights")
+        w = m.addMVar(len(mean), lb=0, ub=1, name="weights")
         m.addConstr(w.sum() == 1, name="Budget_Constraint")
 
-        if tangent and risk_free_asset:
+        if (tangent and risk_free_asset):
             m.addConstr(w[0] == 0, name="Tangency_Constraint")
 
         elif tangent and not risk_free_asset:
@@ -101,51 +103,76 @@ def minimize_variance_gurobi(mean: np.array, sigma: np.array, ret: float, risk_f
         elif tangent and not risk_free_asset:
             ValueError("Set risk-free asset to True to compute tangency portfolio")
 
-    m.addConstr(mean.to_numpy() @ w == ret, name="Min_Return")
-    m.setObjective(w @ sigma @ w, gp.GRB.MINIMIZE)
+    # the return constraint is useless when considering the tangent portfolio
+    # this is because the tangent portfolio already requires specific return by forcing risk-free weight to zero
+    if not tangent:
+        m.addConstr(mean.to_numpy() @ w == ret, name="Min_Return")
+
+    m.setObjective(w @ sigma.to_numpy() @ w, gp.GRB.MINIMIZE)
     m.optimize()
 
     return m
 
 
-def mean_var_portfolio(df: pd.DataFrame, target_returns: np.array, n: int, risk_free_asset: bool, optimizer: str):
+def mean_var_portfolio(df: pd.DataFrame,
+                       target_returns: np.array,
+                       n: int,
+                       risk_free_asset: bool,
+                       long_only: bool,
+                       tangent: bool, optimizer: str):
     """
     computes the return and standard deviation of each mean variance portfolio for a given expected return
     :param df: dataframe containing the returns of each industry (rows are dates, columns are industries)
     :param target_returns: list of expected returns we construct portfolios to target to build locus
     :param n: number of industries
     :param risk_free_asset: boolean determining whether we're building portfolio with or without risk-free asset
+    :param long_only: boolean determining whether we're building long only portfolio or not
+    :param tangent: boolean determining whether we're tangent portfolio or not
     :param optimizer: written 'scipy' or 'gurobi'. If gurobi, uses gurobi, else uses scipy
     :return:
     """
-
     # first and second moment
     cov = df.cov()
-    cov = cov_nearest(cov)  # , threshold=0.001 (smallest eigenvalue)
     mean = df.mean(axis=0)
 
-    x = []
-    y = []
-
+    x = []  # std
+    y = []  # target return
+    w = []  # weights
     if optimizer == "scipy":
+        # account for removal of risk-free asset in var-covar matrix
+        if risk_free_asset:
+            cov = df.iloc[:, 1:].cov()
+
         for ret in target_returns:
-            response = minimize_variance(mean, cov, ret, n, risk_free_asset, False, False)
+            response = minimize_variance(mean, cov, ret, n, risk_free_asset, long_only, tangent)
             x.append(response.fun)
             y.append(ret)
+            w.append(response.x)
 
     elif optimizer == "gurobi":
+
         for ret in target_returns:
-            response = minimize_variance_gurobi(mean, cov, ret, risk_free_asset, False, False)
-            x.append(np.sqrt(response.ObjVal))
-            y.append(ret)
+            response = minimize_variance_gurobi(mean, cov, ret, risk_free_asset, long_only, tangent)
+
+            try:
+                x.append(np.sqrt(response.ObjVal))
+                y.append(ret)
+                w.append(response.X)
+            except AttributeError:
+                x.append(None)
+                y.append(None)
+                w.append([None] * n)
+            except gp._exception.GurobiError:
+                w.append([None] * n)
+
     else:
         ValueError("Use Gurobi or Scipy as optimizer input")
 
-    print(np.linalg.det(cov))
-    return x, y
+    return [x, y], w
 
 
-def analytical_mean_var(mean: np.array, sigma: np.array, ret: float, rfr: float, n:int, risk_free_asset: bool, tangent: bool):
+def analytical_mean_var(mean: np.array, sigma: np.array, ret: float, rfr: float, n: int, risk_free_asset: bool,
+                        tangent: bool):
     """
     minimizes variance of portfolio using analytical formulas
     :param mean: mean returns of each asset in portfolio
