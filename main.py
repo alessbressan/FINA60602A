@@ -203,7 +203,7 @@ plt.show()
 # 1
 N = 49
 np.random.seed(101)
-nb_bootstraps = 100
+nb_bootstraps = 1000
 bootstraps = np.zeros(shape=[nb_bootstraps, 60, 49])  # bootstrapped samples
 mean = df.mean(axis=0)
 target_returns_no_short = np.linspace(np.min(mean), np.max(mean), 21)
