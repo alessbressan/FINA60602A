@@ -151,10 +151,10 @@ init_w = np.repeat(1/N, N)
 # the target return becomes a meaningless parameter when dealing with the tangency portfolio
 response = optimization.minimize_variance(mean, cov, 0.05, N, True, True, True)
 
-print(mean)
-print(response.x)
-print(response.fun)
-print(response.x @ mean)
+# print(mean)
+# print(response.x)
+# print(response.fun)
+# print(response.x @ mean)
 
 fig, ax = plt.subplots()
 ax.bar(x=mean.index, height=response.x)
