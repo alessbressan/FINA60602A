@@ -64,10 +64,60 @@ def optimize_portfolio_gurobi(sigma, mean, ret, long_only=True, tangent=False, r
 
     return optimal_weights
 
+def max_sharpe_ratio(df: pd.DataFrame, exp_return: float) -> tuple:
+    """ 
+    Computes the maximum sharpe ratio for a given return
+
+    Inputs
+        df: dataframe of monthly returns, each colum is a different asset
+        exp_return: expected return for the sharpe ratio
+    
+    Outputs
+        SR: max Sharpe Ratio for the return
+        x: weights of the assets
+        result: dataframe of positions 
+    """
+    cov = df.cov()
+    mean = df.mean(axis=0)
+
+    K = 5
+    l = 5 #max position size (500%)
+
+    # Create an empty optimization model
+    m = gp.Model()
+    m.setParam('OutputFlag', 0)
+    m.Params.Threads=8
+
+    # Add variables: x[i] denotes the proportion of capital invested in stock i
+    x = m.addMVar(len(mean), lb=0, ub=np.inf, name="x")
+    b = m.addMVar(len(mean), vtype=gp.GRB.BINARY, name="b")
+
+    # Budget constraint: all investments sum up to 1
+    m.addConstr(x.sum() == 1, name="Budget_Constraint")
+    m.addConstr(x <= l*b, name= "Long_Indicator")
+    m.addConstr(b.sum() <= K, name="Cardinality")
+    m.addConstr(x.T @ mean.to_numpy() >= exp_return , name="Target_Return")
+
+    # Minimize variance
+    m.setObjective(x.T @ cov.to_numpy() @ x, gp.GRB.MINIMIZE)
+
+    m.optimize()
+
+    var = x.X @ cov.to_numpy() @ x.X
+    rets = mean @ x.X
+    SR = rets/np.sqrt(var)
+
+    positions = pd.Series(name="Position", data= x.X, index= mean.index)
+    index = positions[abs(positions) > 1e-5].index
+    result = pd.DataFrame({'mean' : df[index].mean(),
+                            'var' : df[index].var()})
+    
+    return SR, x, result
+
 
 if __name__ == "__main__":
     # import data
-    data_path = str(Path().absolute()) + "/clean_data/48_Industry_Portfolios.CSV"
+    data_path = str(Path().absolute()) + "/data_will/48_Industry_Portfolios.CSV"
     df = pd.read_csv(data_path, index_col=0)
     df.index = pd.to_datetime(df.index, format="%Y%m")  # clean the index to be datetime
 
@@ -82,10 +132,5 @@ if __name__ == "__main__":
     mean = df.mean(axis=0).to_numpy()
     std = np.sqrt(np.diag(cov))
 
-    # global mean variance portfolio
-    init_w = np.repeat(1/N, N)
-    ret = 2
-    response = optimize_portfolio_gurobi(cov, mean, ret, False, False, False)
-    print(response)
-    # plot
-    # plotting.mean_var_locus(x, y, std, mean, 'Mean Variance Locus (No Risk Free Asset)')
+    SR, _, _ = max_sharpe_ratio(df, 0.03)
+    print(SR)
