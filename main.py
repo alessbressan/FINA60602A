@@ -98,10 +98,14 @@ w, w_rfr = optimization.analytical_mean_var(mean[1:], cov, 0.05, 0.4, 5, True, T
 # display the weights
 fig, ax = plt.subplots()
 ax.grid()
-ax.bar(x=mean.index[1:], height=w, label="Analytical Tangency Portfolio Weights")
-ax.bar(x=mean.index[1:], height=response.x, width=0.5, alpha=0.5, color="red",
+x = np.arange(len(mean.index[1:]))
+width = 0.4
+
+ax.bar(x= x - width/2, height= w, width= width, label="Analytical Tangency Portfolio Weights")
+ax.bar(x= x + width/2, height= response.x, width= width, alpha=0.5, color="red",
        label="Numerically Maximized Sharpe Ratio Weights")
 ax.set_title("Weight of Each Asset in the Tangency Portfolio")
+ax.set_xticklabels(mean.index[1:])
 ax.set_xlabel("Assets")
 ax.set_ylabel("Weight")
 plt.xticks(rotation=90)
@@ -174,18 +178,11 @@ init_w = np.repeat(1 / N, N)
 # the target return becomes a meaningless parameter when dealing with the tangency portfolio
 response = optimization.tangency_portfolio(df, 0.4, True)
 
-<<<<<<< HEAD
-# print(mean)
-# print(response.x)
-# print(response.fun)
-# print(response.x @ mean)
-=======
 w = np.array(response.x) / sum(response.x)
 
 print(w)
 print(w @ mean[1:])
 print(np.sqrt(w @ cov @ w))
->>>>>>> 23da03b30442c622f623f83343294b59aa28263b
 
 fig, ax = plt.subplots()
 ax.bar(x=mean[1:].index, height=w)
