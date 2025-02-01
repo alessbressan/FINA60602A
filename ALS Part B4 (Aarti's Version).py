@@ -189,7 +189,6 @@ for zeta in zetas:
         y_train, y_test = y[train_index], y[test_index]
 
 
-        # Use Lars model to get ||w|| - this function chooses best alpha
         lasso = Lasso(alpha = zeta, fit_intercept=False)  # 10-fold cross-validation
         lasso.fit(X_train, y_train)
         w = lasso.coef_
