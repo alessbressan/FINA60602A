@@ -19,14 +19,13 @@ def minimize_variance_gurobi(mean: np.array, sigma: np.array, ret: float, risk_f
 
     m = gp.Model()
     m.setParam('OutputFlag', 0)
-    m.Params.LogToConsole = 0
 
     b = m.addMVar(len(mean), vtype=gp.GRB.BINARY, name="b")
 
     if long_only:
         w = m.addMVar(len(mean), lb=0, ub=np.inf, name="weights")
         m.addConstr(w.sum() == 1, name="Budget_Constraint")
-        m.addConstr(w <= b, name= "Indicator" )
+        m.addConstr(w <= b, name= "Indicator")
 
         if (tangent and risk_free_asset):
             m.addConstr(w[0] == 0, name="Tangency_Constraint")
@@ -35,7 +34,7 @@ def minimize_variance_gurobi(mean: np.array, sigma: np.array, ret: float, risk_f
             ValueError("Set risk-free asset to True to compute tangency portfolio")
 
     else:
-        limit = 5 # limit
+        limit = 100 # limit
         w = m.addMVar(len(mean), lb=-np.inf, ub=np.inf, name="weights")
         w_plus = m.addMVar(len(mean), lb= 0, ub= np.inf, name="weights_pos")
         w_minus = m.addMVar(len(mean), lb= 0, ub= np.inf, name="weights_neg")
@@ -109,7 +108,7 @@ def mean_var_portfolio(df: pd.DataFrame,
 
     return [x, y], w
 
-def max_sharpe_ratio(df: pd.DataFrame, exp_return: float, K= 3, short_constraint: bool= False) -> tuple:
+def max_sharpe_ratio(df: pd.DataFrame, exp_return: float, K= 3, long_only: bool= False) -> tuple:
     """ 
     Computes the maximum sharpe ratio for a given return
 
@@ -126,7 +125,7 @@ def max_sharpe_ratio(df: pd.DataFrame, exp_return: float, K= 3, short_constraint
     cov = df.cov()
     mean = df.mean(axis=0)
 
-    l = 15 #max position size (500%)
+    l = 100 #max position size (500%)
 
     # Create an empty optimization model
     m = gp.Model()
@@ -137,7 +136,7 @@ def max_sharpe_ratio(df: pd.DataFrame, exp_return: float, K= 3, short_constraint
     
     b = m.addMVar(len(mean), vtype=gp.GRB.BINARY, name="b")
 
-    if short_constraint:
+    if not long_only:
         x = m.addMVar(len(mean), lb=-np.inf, ub=np.inf, name="x")
         x_plus = m.addMVar(len(mean), lb= 0, ub=np.inf, name="x_plus")
         x_minus = m.addMVar(len(mean), lb= 0, ub=np.inf, name="x_minus")
