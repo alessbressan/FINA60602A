@@ -127,13 +127,73 @@ def minimize_variance_gurobi(mean: np.array, sigma: np.array, ret: float, risk_f
 
     return m
 
+def minimize_variance_gurobi_card(mean: np.array, sigma: np.array, ret: float, risk_free_asset: bool, long_only: bool,
+                                  tangent: bool):
+    """
+    minimizes variance of portfolio using sequential least squares programming and returns minimized std
+    :param mean: mean returns of each asset in portfolio
+    :param sigma: variance-covariance matrix of portfolio of assets
+    :param ret: the target return for the portfolio against which we minimize variance
+    :param risk_free_asset: boolean determining whether there is a risk-free asset
+    :param long_only: boolean adding a no short sale constraint
+    :param tangent: boolean to determine whether we want the tangency portfolio
+    :return: standard deviation of portfolio
+    """
+
+    m = gp.Model()
+    m.setParam('OutputFlag', 0)
+    m.Params.LogToConsole = 0
+
+    b = m.addMVar(len(mean), vtype=gp.GRB.BINARY, name="b")
+
+    if long_only:
+        w = m.addMVar(len(mean), lb=0, ub=1, name="weights")
+        m.addConstr(w.sum() == 1, name="Budget_Constraint")
+        m.addConstr(w <= b, name= "Indicator" )
+        if (tangent and risk_free_asset):
+            m.addConstr(w[0] == 0, name="Tangency_Constraint")
+
+        elif tangent and not risk_free_asset:
+            ValueError("Set risk-free asset to True to compute tangency portfolio")
+
+    else:
+        limit = 5 # limit
+        w = m.addMVar(len(mean), lb=-np.inf, ub=np.inf, name="weights")
+        w_plus = m.addMVar(len(mean), lb= 0, ub= np.inf, name="weights_pos")
+        w_minus = m.addMVar(len(mean), lb= 0, ub= np.inf, name="weights_neg")
+        
+        m.addConstr(w.sum() == 1, name="Budget_Constraint")
+        m.addConstr(w == w_plus - w_minus, name= "Position_Balance")
+        m.addConstr(w_plus <= limit*b, name= "Long_Indicator")
+        m.addConstr(w_minus <= limit*b, name= "Short_Indicator")
+
+        if tangent and risk_free_asset:
+            m.addConstr(w[0] == 0, name="Tangency_Constraint")
+
+        elif tangent and not risk_free_asset:
+            ValueError("Set risk-free asset to True to compute tangency portfolio")
+
+    # the return constraint is useless when considering the tangent portfolio
+    # this is because the tangent portfolio already requires specific return by forcing risk-free weight to zero
+    if not tangent:
+        m.addConstr(mean.to_numpy() @ w == ret, name="Min_Return")
+
+
+    m.addConstr(b.sum() <= 3, name= "Cardinality")
+
+    m.setObjective(w @ sigma.to_numpy() @ w, gp.GRB.MINIMIZE)
+    m.optimize()
+
+    return m, w
 
 def mean_var_portfolio(df: pd.DataFrame,
                        target_returns: np.array,
                        n: int,
                        risk_free_asset: bool,
                        long_only: bool,
-                       tangent: bool, optimizer: str):
+                       tangent: bool,
+                       optimizer: str,
+                       cardinality:bool= False):
     """
     computes the return and standard deviation of each mean variance portfolio for a given expected return
     :param df: dataframe containing the returns of each industry (rows are dates, columns are industries)
@@ -143,6 +203,7 @@ def mean_var_portfolio(df: pd.DataFrame,
     :param long_only: boolean determining whether we're building long only portfolio or not
     :param tangent: boolean determining whether we're tangent portfolio or not
     :param optimizer: written 'scipy' or 'gurobi'. If gurobi, uses gurobi, else uses scipy
+    :param cardinality: boolean to add cardinality constraint
     :return:
     """
     # first and second moment
@@ -168,13 +229,22 @@ def mean_var_portfolio(df: pd.DataFrame,
 
         for j in range(len(target_returns)):
             ret = target_returns[j]
-            response = minimize_variance_gurobi(mean, cov, ret, risk_free_asset, long_only, tangent)
+            
+            if cardinality:
+                response, w_car = minimize_variance_gurobi_card(mean, cov, ret, risk_free_asset, long_only, tangent)
+            else:
+                response = minimize_variance_gurobi(mean, cov, ret, risk_free_asset, long_only, tangent)
 
             try:
                 x[j] = np.sqrt(response.ObjVal)
+                if cardinality:
+                    response = w_car
+                print(f"response.X shape: {response.X}")
+                print(f"mean shape: {len(mean)}")
                 y[j] = mean @ response.X
                 w[j] = response.X
-            except AttributeError:
+            except AttributeError as e:
+                print(f'Error message: {e}')
                 x[j] = None
                 y[j] = None
                 w[j] = [None] * n
