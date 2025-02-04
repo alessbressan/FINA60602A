@@ -239,12 +239,9 @@ def mean_var_portfolio(df: pd.DataFrame,
                 x[j] = np.sqrt(response.ObjVal)
                 if cardinality:
                     response = w_car
-                print(f"response.X shape: {response.X}")
-                print(f"mean shape: {len(mean)}")
                 y[j] = mean @ response.X
                 w[j] = response.X
             except AttributeError as e:
-                print(f'Error message: {e}')
                 x[j] = None
                 y[j] = None
                 w[j] = [None] * n
