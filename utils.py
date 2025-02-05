@@ -60,7 +60,7 @@ def minimize_variance_gurobi(mean: np.array, sigma: np.array, ret: float, risk_f
     try:
         return m.ObjVal, w.X
     except Exception as e:
-        print(f'Error: {e}')
+        # print(f'Error: {e}')
         return None, None
 
 def mean_var_portfolio(df: pd.DataFrame,

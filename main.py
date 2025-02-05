@@ -196,13 +196,20 @@ plotting.tangency_plot(x_rf, y_rf, x_no_rf, y_no_rf, w @ mean[1:], np.sqrt(w @ c
 # PART B
 
 # 1
-N = 49
 np.random.seed(101)
+T = 60  # length of each timeseries
+N = 49  # nb of assets
 nb_bootstraps = 1000
 bootstraps = np.zeros(shape=[nb_bootstraps, 60, 49])  # bootstrapped samples
 mean = df.mean(axis=0)
-target_returns_no_short = np.linspace(-2, 4, 21)
-target_returns_no_short_rf = np.linspace(0.4, 4, 21)
+
+# list of target returns with and without short sales
+target_returns = np.arange(-8, 8, 0.04)
+nb_no_short_targets = 20  # nb of target returns to compute for each mean-variance locus (no short)
+nb_targets = len(target_returns)  # nb of target returns to compute for each mean-variance locus
+target_returns_no_short = np.linspace(-2, 4, nb_no_short_targets)
+target_returns_no_short_rf = np.linspace(0.4, 4, nb_no_short_targets)
+
 
 # FIXED VARIANCE BASED CONF INTERVALS
 # target_vars_no_short = np.concatenate([np.linspace(-1*x_no_rf[0], -1*min(x_no_rf), 20), np.linspace(min(x_no_rf), max(x_no_rf), 20)])
@@ -211,18 +218,15 @@ target_returns_no_short_rf = np.linspace(0.4, 4, 21)
 # target_vars_no_short_rf = np.concatenate([np.linspace(-1*x_rf[0], -1*min(x_rf), 20), np.linspace(min(x_rf), max(x_rf), 20)])
 # rf_mean_var_locus_no_short = np.zeros(shape=[nb_bootstraps, len(target_vars_no_short), 2])
 
-# FIXED MEAN BASED CONFIDENCE INTERVALS
-# no short sale constraint
-no_rf_mean_var_locus = np.zeros(shape=[nb_bootstraps, len(target_returns), 2])  # no rf rate bootstrapped mean-var locus
-rf_mean_var_locus = np.zeros(shape=[nb_bootstraps, len(target_returns), 2])  # rf rate bootstrapped mean-var locus
+# no short sale constraint results
+no_rf_mean_var_locus = np.zeros(shape=[nb_bootstraps, nb_targets, 2])  # no rf rate bootstrapped mean-var locus
+rf_mean_var_locus = np.zeros(shape=[nb_bootstraps, nb_targets, 2])  # rf rate bootstrapped mean-var locus
 tangency_portfolio = np.zeros(shape=[nb_bootstraps, 2])  # tangency portfolio bootstrapped mean-var
 tangency_portfolio_weights = np.zeros(shape=[nb_bootstraps, 5])  # tangency portfolio bootstrapped weights
 
-# short sale constraint
-no_rf_mean_var_locus_no_short = np.zeros(
-    shape=[nb_bootstraps, len(target_returns_no_short), 2])  # no rf bootstrapped mean-var locus
-rf_mean_var_locus_no_short = np.zeros(
-    shape=[nb_bootstraps, len(target_returns_no_short_rf), 2])  # rf bootstrapped mean-var locus
+# short sale constraint results
+no_rf_mean_var_locus_no_short = np.zeros(shape=[nb_bootstraps, nb_no_short_targets, 2])  # no rf bootstrapped mean-var locus
+rf_mean_var_locus_no_short = np.zeros(shape=[nb_bootstraps, nb_no_short_targets, 2])  # rf bootstrapped mean-var locus
 tangency_portfolio_no_short = np.zeros(shape=[nb_bootstraps, 2])  # tangency portfolio bootstrapped mean-var
 tangency_portfolio_weights_no_short = np.zeros(shape=[nb_bootstraps, 5])  # tangency portfolio bootstrapped weights
 
@@ -262,9 +266,7 @@ for i in tqdm(range(nb_bootstraps)):
                                                         long_only=True,
                                                         tangent=False,
                                                         optimizer="gurobi")
-    print(np.array(response).T)
     no_rf_mean_var_locus_no_short[i, :, :] = np.array(response).T
-    print(no_rf_mean_var_locus_no_short[i, :, :])
     """
     response, weights = optimization.eff_frontier(resampled_df.iloc[:, 1:],
                                                   target_vars=target_vars_no_short,
@@ -319,6 +321,7 @@ plotting.confidence_bands(df,
                           no_rf_mean_var_locus,
                           target_returns,
                           5,
+                          0.05,
                           "95% Confidence Interval of Mean Variance Locus (No Risk Free Asset)",
                           False,
                           False)
@@ -328,6 +331,7 @@ plotting.confidence_bands(df_rf,
                           rf_mean_var_locus,
                           target_returns,
                           6,
+                          0.05,
                           "95% Confidence Interval of Mean Variance Locus (With Risk Free Asset)",
                           True,
                           False)
@@ -379,6 +383,7 @@ plotting.confidence_bands(df,
                           no_rf_mean_var_locus_no_short,
                           target_returns_no_short,
                           5,
+                          0.05,
                           "95% Confidence Interval of Mean Variance Locus (No Risk Free Asset & Long Only)",
                           False,
                           True)
@@ -409,6 +414,7 @@ plotting.confidence_bands(df_rf,
                           rf_mean_var_locus_no_short,
                           target_returns_no_short_rf,
                           6,
+                          0.05,
                           "95% Confidence Interval of Mean Variance Locus (With Risk Free Asset & Long Only)",
                           True,
                           True)
@@ -463,4 +469,13 @@ plt.boxplot(tangency_portfolio_weights_no_short, labels=["Whlsl", "Fin  ", "Util
 plt.title("Weights in Long Only Tangency Portfolio")
 plt.xlabel("Industries")
 plt.ylabel("Weights (%)")
+plt.show()
+
+
+for i in range(250):
+    indices = ~np.isnan(no_rf_mean_var_locus_no_short[i,:, 0])
+    plt.plot(no_rf_mean_var_locus_no_short[i,:, 0][indices], no_rf_mean_var_locus_no_short[i,:, 1][indices])
+plt.title("Variation in the first 250 Mean Variance Loci")
+plt.xlabel("Standard Deviation (%)")
+plt.ylabel("Expected Return (%)")
 plt.show()

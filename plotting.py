@@ -53,6 +53,7 @@ def confidence_bands(original_data: pd.DataFrame,
                      bootstrapped_data: np.array,
                      target_returns: np.array,
                      n: int,
+                     conf_lvl: float,
                      title: str,
                      risk_free_asset: bool,
                      long_only: bool):
@@ -63,6 +64,7 @@ def confidence_bands(original_data: pd.DataFrame,
     :param bootstrapped_data: nb_bootstraps x len(target_returns) x 2 (last dimension contains [std, return])
     :param target_returns: list of returns targeted in portfolio
     :param n: number of assets in the portfolio
+    :conf_lvl: displays the % confidence level of the confidence interval
     :param title: title displayed
     :param risk_free_asset: boolean determining whether we included a risk-free asset
     :param long_only: boolean determining whether we had a short constraint
@@ -79,11 +81,10 @@ def confidence_bands(original_data: pd.DataFrame,
             u_quantile.append(None)
             l_quantile.append(None)
         else:
-            u_quantile.append(np.quantile(bootstrapped_data[:, j, 0][~np.isnan(bootstrapped_data[:, j, 0])], 0.05))
-            l_quantile.append(np.quantile(bootstrapped_data[:, j, 0][~np.isnan(bootstrapped_data[:, j, 0])], 0.95))
+            u_quantile.append(np.quantile(bootstrapped_data[:, j, 0][~np.isnan(bootstrapped_data[:, j, 0])], conf_lvl/2))
+            l_quantile.append(np.quantile(bootstrapped_data[:, j, 0][~np.isnan(bootstrapped_data[:, j, 0])], 1-conf_lvl/2))
 
     # find true mean variance locus based on our current data
-    print(original_data)
     response, weights = optimization.mean_var_portfolio(original_data, target_returns, n, risk_free_asset, long_only,
                                                         False, "scipy")
 

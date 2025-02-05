@@ -186,6 +186,7 @@ def minimize_variance_gurobi_card(mean: np.array, sigma: np.array, ret: float, r
 
     return m, w
 
+
 def mean_var_portfolio(df: pd.DataFrame,
                        target_returns: np.array,
                        n: int,
@@ -342,6 +343,76 @@ def tangency_portfolio(df: pd.DataFrame, rf: float, long_only: bool):
     return response
 
 
+def max_sharpe_ratio(df: pd.DataFrame, exp_return: float, short_constraint: bool) -> tuple:
+    """ 
+    Computes the maximum sharpe ratio for a given return
+
+    Inputs
+        df: dataframe of monthly returns, each colum is a different asset
+        exp_return: expected return for the sharpe ratio
+        short_constraint: boolean for short constraint 
+    
+    Outputs
+        x: weights of the assets
+        SR: max sharpe ratio for the specified return
+        result: dataframe of optimized positions 
+    """
+    cov = df.cov()
+    mean = df.mean(axis=0)
+
+    K = 5
+    l = 5 #max position size (500%)
+
+    # Create an empty optimization model
+    m = gp.Model()
+    m.setParam('OutputFlag', 0)
+    m.Params.Threads=8
+
+    # Add variables: x[i] denotes the proportion of capital invested in stock i
+    
+    b = m.addMVar(len(mean), vtype=gp.GRB.BINARY, name="b")
+
+    if short_constraint:
+        x = m.addMVar(len(mean), lb=-np.inf, ub=np.inf, name="x")
+        x_plus = m.addMVar(len(mean), lb= 0, ub=np.inf, name="x_plus")
+        x_minus = m.addMVar(len(mean), lb= 0, ub=np.inf, name="x_minus")
+
+        # Budget constraint: all investments sum up to 1
+        m.addConstr(x == x_plus - x_minus, name= "Position_Balance")
+        m.addConstr(x_plus <= l*b, name= "Long_Indicator")
+        m.addConstr(x_minus <= l*b, name= "Short_Indicator")
+    else:
+        x = m.addMVar(len(mean), lb=0, ub=np.inf, name="x")
+        m.addConstr(x <= l*b, name= "Long_Indicator")
+
+    # Budget constraint: all investments sum up to 1
+    
+    m.addConstr(x.sum() == 1, name="Budget_Constraint")
+    m.addConstr(b.sum() <= K, name="Cardinality")
+    m.addConstr(x.T @ mean.to_numpy() >= exp_return , name="Target_Return")
+
+    # Minimize variance
+    m.setObjective(x.T @ cov.to_numpy() @ x, gp.GRB.MINIMIZE)
+
+    m.optimize()
+
+    try:
+        var = x.X @ cov.to_numpy() @ x.X
+        rets = mean @ x.X
+        SR = rets/np.sqrt(var)
+
+        positions = pd.Series(name="Position", data= x.X, index= mean.index)
+        index = positions[abs(positions) > 1e-5].index
+        result = pd.DataFrame({'mean' : df[index].mean(),
+                                'var' : df[index].var()})
+    except:
+        SR= None
+        x = None
+        result = None
+
+    return SR, x, result
+
+
 def global_min_var_portfolio(mean: np.array, sigma: np.array, long_only: bool):
     """
     finds return of global minimum variance portfolio
@@ -469,72 +540,3 @@ def eff_frontier(df: pd.DataFrame,
         ValueError("Use Gurobi or Scipy as optimizer input")
 
     return [x, y], w
-
-def max_sharpe_ratio(df: pd.DataFrame, exp_return: float, short_constraint: bool) -> tuple:
-    """ 
-    Computes the maximum sharpe ratio for a given return
-
-    Inputs
-        df: dataframe of monthly returns, each colum is a different asset
-        exp_return: expected return for the sharpe ratio
-        short_constraint: boolean for short constraint 
-    
-    Outputs
-        x: weights of the assets
-        SR: max sharpe ratio for the specified return
-        result: dataframe of optimized positions 
-    """
-    cov = df.cov()
-    mean = df.mean(axis=0)
-
-    K = 5
-    l = 5 #max position size (500%)
-
-    # Create an empty optimization model
-    m = gp.Model()
-    m.setParam('OutputFlag', 0)
-    m.Params.Threads=8
-
-    # Add variables: x[i] denotes the proportion of capital invested in stock i
-    
-    b = m.addMVar(len(mean), vtype=gp.GRB.BINARY, name="b")
-
-    if short_constraint:
-        x = m.addMVar(len(mean), lb=-np.inf, ub=np.inf, name="x")
-        x_plus = m.addMVar(len(mean), lb= 0, ub=np.inf, name="x_plus")
-        x_minus = m.addMVar(len(mean), lb= 0, ub=np.inf, name="x_minus")
-
-        # Budget constraint: all investments sum up to 1
-        m.addConstr(x == x_plus - x_minus, name= "Position_Balance")
-        m.addConstr(x_plus <= l*b, name= "Long_Indicator")
-        m.addConstr(x_minus <= l*b, name= "Short_Indicator")
-    else:
-        x = m.addMVar(len(mean), lb=0, ub=np.inf, name="x")
-        m.addConstr(x <= l*b, name= "Long_Indicator")
-
-    # Budget constraint: all investments sum up to 1
-    
-    m.addConstr(x.sum() == 1, name="Budget_Constraint")
-    m.addConstr(b.sum() <= K, name="Cardinality")
-    m.addConstr(x.T @ mean.to_numpy() >= exp_return , name="Target_Return")
-
-    # Minimize variance
-    m.setObjective(x.T @ cov.to_numpy() @ x, gp.GRB.MINIMIZE)
-
-    m.optimize()
-
-    try:
-        var = x.X @ cov.to_numpy() @ x.X
-        rets = mean @ x.X
-        SR = rets/np.sqrt(var)
-
-        positions = pd.Series(name="Position", data= x.X, index= mean.index)
-        index = positions[abs(positions) > 1e-5].index
-        result = pd.DataFrame({'mean' : df[index].mean(),
-                                'var' : df[index].var()})
-    except:
-        SR= None
-        x = None
-        result = None
-
-    return SR, x, result
