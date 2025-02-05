@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
-from statsmodels.stats.correlation_tools import cov_nearest
 from matplotlib import pyplot as plt
-from adjustText import adjust_text
 from pathlib import Path
 from tqdm import tqdm
 
