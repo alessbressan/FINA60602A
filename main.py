@@ -170,7 +170,6 @@ df_rf = pd.concat([rf, df], axis=1)
 
 # cov = df.cov()
 mean = df_rf.mean(axis=0)
-std = np.sqrt(np.diag(df_rf.cov()))
 
 # global mean variance portfolio
 init_w = np.repeat(1 / N, N)
