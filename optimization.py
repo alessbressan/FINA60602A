@@ -338,7 +338,7 @@ def tangency_portfolio(df: pd.DataFrame, rf: float, long_only: bool):
         response = optimize.minimize(neg_sharpe_ratio, init_w,
                                      (sigma, mean, rf),
                                      constraints=cons,
-                                     method="SLSQP")
+                                     method="trust-constr")
 
     return response
 

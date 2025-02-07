@@ -91,7 +91,7 @@ def confidence_bands(original_data: pd.DataFrame,
     # plot
     fig, ax = plt.subplots()
 
-    ax.plot(response[0], response[1], linewidth=2, color="black", label="Original Mean Variance Locus")
+    ax.plot(response[0], response[1], linewidth=2, color="black", label="Original Locus")
     ax.plot(l_quantile, target_returns, linewidth=1.5, color="pink", linestyle="--", label="Lower 95% CI")
     ax.plot(u_quantile, target_returns, linewidth=1.5, color="gray", linestyle="--", label="Upper 95% CI")
 
@@ -107,7 +107,7 @@ def confidence_bands(original_data: pd.DataFrame,
     ax.set(xlabel='Standard Deviation (%)', ylabel='Expected Return (%)',
            title=title)
     ax.grid()
-    ax.legend(loc="upper right")
+    ax.legend(loc='center left', bbox_to_anchor=(0.9, 0.5))
     plt.show()
 
 
