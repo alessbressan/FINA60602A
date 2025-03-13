@@ -63,16 +63,12 @@ def compute_portfolio_weights(returns_df, rf_series, market_cap_df=None, window_
         mu_excess = window_excess.mean().values
         Sigma = window_excess.cov().values
         
-        # 1) Max Sharpe (unconstrained):
-        def neg_sharpe_unconstrained(w):
-            port_excess = np.dot(w, mu_excess)
-            vol = np.sqrt(np.dot(w, Sigma.dot(w)))
-            return -1 * port_excess / vol
-
-        cons_uncon = {'type': 'eq', 'fun': lambda w: np.sum(w) - 1}
-        init_guess_uncon = np.full(n_assets, 1 / n_assets)
-        opt_uncon = minimize(neg_sharpe_unconstrained, init_guess_uncon, method='SLSQP', constraints=cons_uncon)
-        w1 = opt_uncon.x if opt_uncon.success else np.full(n_assets, np.nan)
+        # 1) Max Sharpe (unconstrained) using analytical solution:
+        try:
+            w_temp = np.linalg.solve(Sigma, mu_excess)
+            w1 = w_temp / np.sum(w_temp)
+        except np.linalg.LinAlgError:
+            w1 = np.full(n_assets, np.nan)
         
         # 2) Max Sharpe (constrained, no short sales)
         def neg_sharpe(w):
